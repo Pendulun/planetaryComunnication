@@ -1,5 +1,18 @@
 import socket
 import sys
+from common import MessageEncoderDecoder
+
+msgEncDec = MessageEncoderDecoder()
+
+message = {}
+message['type'] = 1
+message['origin'] = 20
+message['destiny'] = 30
+message['sequence'] = 9
+
+msgEncoded = msgEncDec.encode(message)
+
+print(msgEncDec.decode(msgEncoded))
 
 messages = [
     'This is the message. ',
@@ -19,7 +32,7 @@ print('connecting to {} port {}'.format(*server_address),
       file=sys.stderr)
 for s in socks:
     s.connect(server_address)
-    
+
 for message in messages:
     outgoing_data = message.encode()
 
