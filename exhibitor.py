@@ -1,42 +1,45 @@
 import socket
 import sys
+from common import SimpleMessage
+from common import BaseHeader
 
-messages = [
-    'This is the message. ',
-    'It will be sent ',
-    'in parts.',
-]
-server_address = ('localhost', 10000)
+def usage():
+    print("python emitter.py <serverIP> <port>")
 
-# Create a TCP/IP socket
-socks = [
-    socket.socket(socket.AF_INET, socket.SOCK_STREAM),
-    socket.socket(socket.AF_INET, socket.SOCK_STREAM),
-]
+def runExhibitor():
+    server_address = (sys.argv[1], int(sys.argv[2]))
 
-# Connect the socket to the port where the server is listening
-print('connecting to {} port {}'.format(*server_address),
-      file=sys.stderr)
-for s in socks:
-    s.connect(server_address)
+    # Create a TCP/IP socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    # Connect the socket to the port where the server is listening
+    print('connecting to {} port {}'.format(*server_address), file=sys.stderr)
+
+    sock.connect(server_address)
+
+    #Enviar mensagem HI
+    sMsg = BaseHeader()
+    message = {'type': 3, 'origin': 0, 'destiny': 0, 'sequence':0}
+    sMsg.setAttr(message)
+    bMsg = sMsg.toBytes()
+
+    print('{}: sending {!r}'.format(sock.getsockname(), bMsg), file=sys.stderr)
+    sock.send(bMsg)
+
+    #Receber resposta
+    data = sock.recv(1024)
+    sMsg.fromBytes(data)
+    print('{}: received {}'.format(sock.getsockname(), data), file=sys.stderr)
+
+    if not data:
+        print('closing socket', sock.getsockname(), file=sys.stderr)
+        sock.close()
+    else:
+        print(f"My ID is: {sMsg.destiny}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        usage()
+        exit(1)
     
-for message in messages:
-    outgoing_data = message.encode()
-
-    # Send messages on both sockets
-    for s in socks:
-        print('{}: sending {!r}'.format(s.getsockname(),
-                                        outgoing_data),
-              file=sys.stderr)
-        s.send(outgoing_data)
-
-    # Read responses on both sockets
-    for s in socks:
-        data = s.recv(1024)
-        print('{}: received {!r}'.format(s.getsockname(),
-                                         data),
-              file=sys.stderr)
-        if not data:
-            print('closing socket', s.getsockname(),
-                  file=sys.stderr)
-            s.close()
+    runExhibitor()

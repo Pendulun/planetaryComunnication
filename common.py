@@ -32,10 +32,10 @@ class BaseHeader():
         self.sequence = ""
     
     def fromBytes(self, bytes):
-        self.type = struct.unpack('h', bytes[0:2])[0]
-        self.origin = struct.unpack('h', bytes[2:4])[0]
-        self.destiny = struct.unpack('h', bytes[4:6])[0]
-        self.sequence = struct.unpack('h', bytes[6:8])[0]
+        self.type = struct.unpack('H', bytes[0:2])[0]
+        self.origin = struct.unpack('H', bytes[2:4])[0]
+        self.destiny = struct.unpack('H', bytes[4:6])[0]
+        self.sequence = struct.unpack('H', bytes[6:8])[0]
 
         return self.__str__()
     
@@ -43,10 +43,10 @@ class BaseHeader():
         return " ".join([str(self.type), str(self.origin), str(self.destiny), str(self.sequence)])
     
     def toBytes(self):
-        messageTypeBytes = struct.pack('h', self.type)
-        messageOriginBytes = struct.pack('h', self.origin)
-        messageDestinyBytes = struct.pack('h', self.destiny)
-        messageSequenceBytes = struct.pack('h', self.sequence)
+        messageTypeBytes = struct.pack('H', self.type)
+        messageOriginBytes = struct.pack('H', self.origin)
+        messageDestinyBytes = struct.pack('H', self.destiny)
+        messageSequenceBytes = struct.pack('H', self.sequence)
 
         messageHeader = b"".join([messageTypeBytes, messageOriginBytes, messageDestinyBytes, messageSequenceBytes])
 
@@ -66,18 +66,48 @@ class SimpleMessage():
     
     def fromBytes(self, bytes):
         self.header.fromBytes(bytes)
-        self.message = str(struct.unpack('s', bytes[8:-1])[0])
+        #self.message = str(struct.unpack('s', bytes[8:-1])[0])
+        self.message = bytes[8:].decode()
 
     def __str__(self):
-        return " ".join([str(self.message), self.header.__str__()])
+        return " ".join([self.header.__str__(), str(self.message)])
     
     def toBytes(self):
-        messageBytes = struct.pack('s', self.message)
+        #messageBytes = struct.pack('s', self.message)
+        messageBytes = self.message.encode()
 
-        completeMessage = b"".join([messageBytes, self.header.toBytes()])
+        completeMessage = b"".join([self.header.toBytes(), messageBytes])
 
         return completeMessage
 
     def setAttr(self, message: dict):
         self.header.setAttr(message)
         self.message = message['message']
+
+class Parameter2BMessage():
+
+    def __init__(self):
+        self.header = BaseHeader()
+        self.message = ""
+        self.parameter = ""
+    
+    def fromBytes(self, bytes):
+        self.header.fromBytes(bytes)
+        self.parameter = str(struct.unpack('H', bytes[8:10])[0])
+        self.message = bytes[10:].decode()
+
+    def __str__(self):
+        return " ".join([self.header.__str__(), str(self.parameter), str(self.message)])
+    
+    def toBytes(self):
+        messageBytes = self.message.encode()
+        parameterBytes = struct.pack('H', self.parameter)
+
+        completeMessage = b"".join([self.header.toBytes(), parameterBytes, messageBytes])
+
+        return completeMessage
+
+    def setAttr(self, message: dict):
+        self.header.setAttr(message)
+        self.message = message['message']
+        self.parameter = message['parameter']

@@ -1,55 +1,46 @@
 import socket
 import sys
-from common import MessageEncoderDecoder
+from common import SimpleMessage
+from common import BaseHeader
 
-msgEncDec = MessageEncoderDecoder()
+def usage():
+    print("python emitter.py <serverIP> <port> <exihibitorID>")
 
-message = {}
-message['type'] = 1
-message['origin'] = 20
-message['destiny'] = 30
-message['sequence'] = 9
+def runEmitter():
+    server_address = (sys.argv[1], int(sys.argv[2]))
+    exihibitorID = int(sys.argv[1])
 
-msgEncoded = msgEncDec.encode(message)
+    # Create a TCP/IP socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-print(msgEncDec.decode(msgEncoded))
+    # Connect the socket to the port where the server is listening
+    print('connecting to {} port {}'.format(*server_address), file=sys.stderr)
 
-messages = [
-    'This is the message. ',
-    'It will be sent ',
-    'in parts.',
-]
-server_address = ('localhost', 10000)
+    sock.connect(server_address)
 
-# Create a TCP/IP socket
-socks = [
-    socket.socket(socket.AF_INET, socket.SOCK_STREAM),
-    socket.socket(socket.AF_INET, socket.SOCK_STREAM),
-]
+    #Enviar mensagem HI
+    sMsg = BaseHeader()
+    message = {'type': 3, 'origin': 0, 'destiny': 0, 'sequence':0}
+    sMsg.setAttr(message)
+    bMsg = sMsg.toBytes()
 
-# Connect the socket to the port where the server is listening
-print('connecting to {} port {}'.format(*server_address),
-      file=sys.stderr)
-for s in socks:
-    s.connect(server_address)
+    print('{}: sending {!r}'.format(sock.getsockname(), bMsg), file=sys.stderr)
+    sock.send(bMsg)
 
-for message in messages:
-    outgoing_data = message.encode()
+    #Receber resposta
+    data = sock.recv(1024)
+    sMsg.fromBytes(data)
+    print('{}: received {}'.format(sock.getsockname(), data), file=sys.stderr)
 
-    # Send messages on both sockets
-    for s in socks:
-        print('{}: sending {!r}'.format(s.getsockname(),
-                                        outgoing_data),
-              file=sys.stderr)
-        s.send(outgoing_data)
+    if not data:
+        print('closing socket', sock.getsockname(), file=sys.stderr)
+        sock.close()
+    else:
+        print(f"My ID is: {sMsg.destiny}")
 
-    # Read responses on both sockets
-    for s in socks:
-        data = s.recv(1024)
-        print('{}: received {!r}'.format(s.getsockname(),
-                                         data),
-              file=sys.stderr)
-        if not data:
-            print('closing socket', s.getsockname(),
-                  file=sys.stderr)
-            s.close()
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        usage()
+        exit(1)
+    
+    runEmitter()
