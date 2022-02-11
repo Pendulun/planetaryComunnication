@@ -1,4 +1,109 @@
 import struct
+import socket
+import sys
+
+class Communicator():
+    SERVID = (2**16) - 1
+
+class Client(Communicator):
+    def __init__(self):
+        self.myID = -1
+        self.sock = -1
+        self.connected = False
+        self.planet = ""
+    
+    def _clearAttr(self):
+        self.myID = -1
+        self.sock = -1
+        self.connected = False
+        self.planet = ""
+    
+    def _shutdownWithError(self, errorMsg):
+        print(f"Error: {errorMsg}")
+        print("Shutting connection!", self.sock.getsockname(), file=sys.stderr)
+        self.sock.close()
+        self._clearAttr()
+    
+    def connectWith(self, serverIP, serverPort):
+        server_address = (serverIP, serverPort)
+        # Create a TCP/IP socket
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # Connect the socket to the port where the server is listening
+        print('connecting to {} port {}'.format(*server_address), file=sys.stderr)
+
+        try:
+            self.sock.connect(server_address)
+        except:
+            print("Connection failed!")
+            return False
+        
+        self.connected = True
+        
+        if(self.checkForHI()):
+            print(f"MY ID: {self.myID}")
+            #ORIGIN
+            self.planet = input("WRITE ORIGIN PLANET:\n> ")
+            if(self.sendOrigin()):
+                return True
+            else:
+                self._shutdownWithError("Send ORIGIN Failed!")
+                return False
+        else:
+            self._shutdownWithError("Send HI Failed!")
+            return False
+        
+        return True
+    
+    def checkForHI(self):
+        #Enviar mensagem HI
+        sMsg = BaseHeader()
+        message = self._messageForHI()
+        sMsg.setAttr(message)
+        bMsg = sMsg.toBytes()
+
+        print('{}: sending {!r}'.format(self.sock.getsockname(), bMsg), file=sys.stderr)
+        self.sock.send(bMsg)
+
+        #Receber resposta
+        data = self.sock.recv(1024)
+        sMsg.fromBytes(data)
+        print('{}: received {}'.format(self.sock.getsockname(), data), file=sys.stderr)
+        if(sMsg.type == 1):
+            self.myID = sMsg.destiny
+            return True
+        else:
+            return False
+    
+    def _messageForHI(self):
+        raise NotImplementedError
+    
+    def sendOrigin(self):
+        #Enviar mensagem HI
+        sMsg = Parameter2BMessage()
+        message = {'type': 3, 'origin': 0, 'destiny': 0, 'sequence':0, 'parameter': len(self.planet), 'message': self.planet}
+        sMsg.setAttr(message)
+        bMsg = sMsg.toBytes()
+
+        print('{}: sending {!r}'.format(self.sock.getsockname(), bMsg), file=sys.stderr)
+        self.sock.send(bMsg)
+
+        #Receber resposta
+        data = self.sock.recv(1024)
+        sMsg = BaseHeader()
+        sMsg.fromBytes(data)
+        print('{}: received {}'.format(self.sock.getsockname(), data), file=sys.stderr)
+        if(sMsg.type == 1):
+            return True
+        else:
+            return False
+        
+    def disconnectFromServer(self):
+        print("Disconnecting from server!")
+        self.sock.close()
+        self._clearAttr()
+
+
 
 class MessageEncoderDecoder():
     
@@ -24,6 +129,9 @@ class MessageEncoderDecoder():
         return messageHeader
 
 class BaseHeader():
+    """
+    A Message that contains only the base headers
+    """
 
     def __init__(self):
         self.type = ""
@@ -59,6 +167,9 @@ class BaseHeader():
         self.sequence = message['sequence']
 
 class SimpleMessage():
+    """"
+    A Message that contains the base headers and a message to be sent along with it
+    """
 
     def __init__(self):
         self.header = BaseHeader()
@@ -85,6 +196,9 @@ class SimpleMessage():
         self.message = message['message']
 
 class Parameter2BMessage():
+    """"
+    A Message that contains the base headers, a parameter of 2 bytes and a message to be sent along with it
+    """
 
     def __init__(self):
         self.header = BaseHeader()

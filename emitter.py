@@ -2,42 +2,61 @@ import socket
 import sys
 from common import SimpleMessage
 from common import BaseHeader
+from common import Client
+from common import Communicator
 
 def usage():
     print("python emitter.py <serverIP> <port> <exihibitorID>")
 
+class Emitter(Client):
+
+    def __init__(self, exhibitorID):
+        super().__init__()
+        self.myExhibitorID = exhibitorID    
+    
+    def _messageForHI(self):
+        return {'type': 3, 'origin': self.myExhibitorID, 'destiny': Communicator.SERVID, 'sequence':0}
+    
+    def readInputUntilMustClose(self):
+        shouldStop = False
+        while(not shouldStop):
+            print(">", end="")
+            command = input()
+            shouldStop = self._treatCommand(command)
+        
+        self.disconnectFromServer()
+    
+    def _treatCommand(self, command):
+        shouldStop = False
+        splitedCommand = command.split(" ")
+
+        if splitedCommand[0] == "KILL":
+            sMsg = BaseHeader()
+            message = {'type': 4, 'origin': self.myID, 'destiny': self.myExhibitorID, 'sequence':0}
+            sMsg.setAttr(message)
+            bMsg = sMsg.toBytes()
+
+            print('{}: sending {!r}'.format(self.sock.getsockname(), bMsg), file=sys.stderr)
+            self.sock.send(bMsg)
+            
+            shouldStop = True
+
+        return shouldStop
+
 def runEmitter():
-    server_address = (sys.argv[1], int(sys.argv[2]))
-    exihibitorID = int(sys.argv[1])
 
-    # Create a TCP/IP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    emitter = Emitter(int(sys.argv[3]))
 
-    # Connect the socket to the port where the server is listening
-    print('connecting to {} port {}'.format(*server_address), file=sys.stderr)
-
-    sock.connect(server_address)
-
-    #Enviar mensagem HI
-    sMsg = BaseHeader()
-    message = {'type': 3, 'origin': 0, 'destiny': 0, 'sequence':0}
-    sMsg.setAttr(message)
-    bMsg = sMsg.toBytes()
-
-    print('{}: sending {!r}'.format(sock.getsockname(), bMsg), file=sys.stderr)
-    sock.send(bMsg)
-
-    #Receber resposta
-    data = sock.recv(1024)
-    sMsg.fromBytes(data)
-    print('{}: received {}'.format(sock.getsockname(), data), file=sys.stderr)
-
-    if not data:
-        print('closing socket', sock.getsockname(), file=sys.stderr)
-        sock.close()
+    if(emitter.connectWith(sys.argv[1], int(sys.argv[2]))):
+        print("Se conectou!")
+        emitter.readInputUntilMustClose()
     else:
-        print(f"My ID is: {sMsg.destiny}")
+        print("Program shutdown!")
+        exit(1)
+    
+    emitter.disconnectFromServer()
 
+    
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         usage()

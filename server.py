@@ -6,16 +6,16 @@ import struct
 import random
 from common import SimpleMessage
 from common import BaseHeader
+from common import Communicator
 
 def usage():
     print("Usage: python server.py <port>")
 
-class Server:
+class Server(Communicator):
     MINEXIID = 2**12
     MAXEXID = (2**13)-1
     MINEMID = 1
     MAXEMID = (2**12) - 1
-    SERVID = (2**16) - 1
 
     def __init__(self):
         self.sock = -1
@@ -94,7 +94,7 @@ class Server:
                 else:
                     data = s.recv(1024)
                     if data:
-                        print('  received {} from {}'.format(data, s.getpeername()), file=sys.stderr,)
+                        print('Received {} from {}'.format(data, s.getpeername()), file=sys.stderr,)
                     
                         sockToAnswer, responseMessage = self.treatMessage(data, s)
 
@@ -159,9 +159,10 @@ class Server:
                 myMessage = BaseHeader()
                 newId = self.generateExihibitorId()
                 print(f"GENERATED ID: {newId}")
+                self.exihibitors.append(newId)
                 
                 message = {}
-                message['origin'] = Server.SERVID 
+                message['origin'] = Communicator.SERVID 
                 message['destiny'] = newId
                 message['type'] = 1
                 message['sequence'] = self.sequence
@@ -171,6 +172,23 @@ class Server:
                 self.clientsInfo[newId] = {'socket': inSocket}
 
                 sockToAnswer = inSocket  
+        
+        elif messageType == 4:
+            self.sequence += 1
+            inMessage = BaseHeader()
+            inMessage.fromBytes(bytesMessage)
+            if inMessage.destiny in self.exihibitors:
+                exhibitorSocket = self.clientsInfo[inMessage.destiny]['Socket']
+
+                sockToAnswer = exhibitorSocket
+
+                message = {}
+                message['origin'] = inMessage.origin
+                message['destiny'] = inMessage.destiny
+                message['type'] = 4
+                message['sequence'] = self.sequence
+                myMessage.setAttr(message)
+                responseMessage = myMessage.toBytes()
 
         return sockToAnswer, responseMessage                                   
 

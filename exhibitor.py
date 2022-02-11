@@ -1,41 +1,64 @@
 import socket
 import sys
+import struct
 from common import SimpleMessage
 from common import BaseHeader
+from common import Client
+from common import Communicator
 
 def usage():
     print("python emitter.py <serverIP> <port>")
 
+class Exhibitor(Client):
+
+    def __init__(self):
+        super().__init__()
+    
+    def _messageForHI(self):
+        return {'type': 3, 'origin': 0, 'destiny': Communicator.SERVID, 'sequence':0}
+    
+    def _treatMessage(self, bytesMessage):
+        shouldStop = False
+
+        messageType = struct.unpack("H", bytesMessage[0:2])[0]
+        
+        if  messageType == 4:
+
+            sMsg = BaseHeader()
+            message = {'type': 1, 'origin': self.myID, 'destiny': Communicator.SERVID, 'sequence':0}
+            sMsg.setAttr(message)
+            bMsg = sMsg.toBytes()
+
+            print('{}: sending {!r}'.format(self.sock.getsockname(), bMsg), file=sys.stderr)
+            self.sock.send(bMsg)
+
+            shouldStop = True
+            pass
+
+        return shouldStop               
+    
+    def answerRequestsUntilMustClose(self):
+        shouldStop = False
+        while(not shouldStop):
+            data = self.sock.recv(1024)
+
+            shouldStop = self._treatMessage(data)
+        
+        self.disconnectFromServer()
+
+    
 def runExhibitor():
-    server_address = (sys.argv[1], int(sys.argv[2]))
 
-    # Create a TCP/IP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    exhibitor = Exhibitor()
 
-    # Connect the socket to the port where the server is listening
-    print('connecting to {} port {}'.format(*server_address), file=sys.stderr)
-
-    sock.connect(server_address)
-
-    #Enviar mensagem HI
-    sMsg = BaseHeader()
-    message = {'type': 3, 'origin': 0, 'destiny': 0, 'sequence':0}
-    sMsg.setAttr(message)
-    bMsg = sMsg.toBytes()
-
-    print('{}: sending {!r}'.format(sock.getsockname(), bMsg), file=sys.stderr)
-    sock.send(bMsg)
-
-    #Receber resposta
-    data = sock.recv(1024)
-    sMsg.fromBytes(data)
-    print('{}: received {}'.format(sock.getsockname(), data), file=sys.stderr)
-
-    if not data:
-        print('closing socket', sock.getsockname(), file=sys.stderr)
-        sock.close()
+    if(exhibitor.connectWith(sys.argv[1], int(sys.argv[2]))):
+        print("Se conectou!")
+        exhibitor.answerRequestsUntilMustClose()
     else:
-        print(f"My ID is: {sMsg.destiny}")
+        print("Program shutdown!")
+        exit(1)
+    
+    
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
