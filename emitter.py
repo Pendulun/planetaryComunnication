@@ -53,8 +53,6 @@ def runEmitter():
     else:
         print("Program shutdown!")
         exit(1)
-    
-    emitter.disconnectFromServer()
 
     
 if __name__ == "__main__":

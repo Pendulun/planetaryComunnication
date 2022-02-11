@@ -7,6 +7,7 @@ import random
 from common import SimpleMessage
 from common import BaseHeader
 from common import Communicator
+from common import Parameter2BMessage
 
 def usage():
     print("Usage: python server.py <port>")
@@ -23,6 +24,10 @@ class Server(Communicator):
         self.exihibitors = []
         self.emitters = []
         self.clientsInfo = {}
+        self.takenExhibitors = []
+        self.outputs = []
+        self.inputs = []
+        self.message_queues = {}
     
     def generateExihibitorId(self):
         exId = random.randint(Server.MINEXIID, Server.MAXEXID)
@@ -51,6 +56,17 @@ class Server(Communicator):
         self.sock.bind(server_address)
 
         print(self.sock.getsockname())
+    
+    def _closeConnectionWith(self, socket):
+        print(f'  closing {socket.getpeername()}', file=sys.stderr)
+        # Stop listening for input on the connection
+        if socket in self.outputs:
+            self.outputs.remove(socket)
+        self.inputs.remove(socket)
+        socket.close()
+
+        # Remove message queue
+        del self.message_queues[socket]
 
     def run(self):
 
@@ -61,22 +77,22 @@ class Server(Communicator):
         self.sock.listen(5)
 
         # Sockets from which we expect to read
-        inputs = [self.sock]
+        self.inputs = [self.sock]
 
         # Sockets to which we expect to write
-        outputs = []
+        self.outputs = []
 
         # Outgoing message queues (socket:Queue)
-        message_queues = {}
+        self.message_queues = {}
 
         client_ids = {}
 
-        while inputs:
+        while self.inputs:
 
             # Wait for at least one of the sockets to be
             # ready for processing
             print('waiting for the next event', file=sys.stderr)
-            readable, writable, exceptional = select.select(inputs, outputs, inputs)
+            readable, writable, exceptional = select.select(self.inputs, self.outputs, self.inputs)
             
             # Handle inputs
             for s in readable:
@@ -86,59 +102,114 @@ class Server(Communicator):
                     connection, client_address = s.accept()
                     print('  connection from', client_address, file=sys.stderr)
                     connection.setblocking(0)
-                    inputs.append(connection)
+                    self.inputs.append(connection)
 
                     # Give the connection a queue for data
                     # we want to send
-                    message_queues[connection] = queue.Queue()
+                    print(f"Criou entrada no message queue para {connection}")
+                    self.message_queues[connection] = queue.Queue()
                 else:
                     data = s.recv(1024)
                     if data:
-                        print('Received {} from {}'.format(data, s.getpeername()), file=sys.stderr,)
+                        #print('Received {} from {}'.format(data, s.getpeername()), file=sys.stderr,)
                     
                         sockToAnswer, responseMessage = self.treatMessage(data, s)
 
                         if sockToAnswer:
-                            message_queues[sockToAnswer].put(responseMessage)
-                            if sockToAnswer not in outputs:
-                                outputs.append(sockToAnswer)
+                            self.message_queues[sockToAnswer].put(responseMessage)
+                            if sockToAnswer not in self.outputs:
+                                self.outputs.append(sockToAnswer)
                         
                     else:
                         # Interpret empty result as closed connection
-                        print('  closing', client_address, file=sys.stderr)
-                        # Stop listening for input on the connection
-                        if s in outputs:
-                            outputs.remove(s)
-                        inputs.remove(s)
-                        s.close()
-
-                        # Remove message queue
-                        del message_queues[s]
+                        self._closeConnectionWith(s)
 
             # Handle outputs
             for s in writable:
                 try:
-                    next_msg = message_queues[s].get_nowait()
+                    next_msg = self.message_queues[s].get_nowait()
                 except queue.Empty:
                     # No messages waiting so stop checking
                     # for writability.
                     print('  ', s.getpeername(), 'queue empty', file=sys.stderr)
-                    outputs.remove(s)
+                    self.outputs.remove(s)
                 else:
-                    print('  sending {} to {}'.format(next_msg, s.getpeername()), file=sys.stderr)
+                    msgType = struct.unpack("H", next_msg[0:2])[0]
+
+                    shouldCloseConnection = False
+                    if msgType in [1, 4, 8]:
+                        sMsg = BaseHeader()
+                        sMsg.fromBytes(next_msg)
+                        print('  sending {} to {}'.format(sMsg, s.getpeername()), file=sys.stderr)
+                    
+                        if msgType == 4:
+                            #Its a KILL for a exhibitor
+                            exhibitorId = sMsg.destiny
+                            self.exihibitors.remove(exhibitorId)
+                            del self.clientsInfo[exhibitorId]
+                            shouldCloseConnection = True
+                            
+
                     s.send(next_msg)
+                    if(shouldCloseConnection):
+                        self._closeConnectionWith(s)
 
             # Handle "exceptional conditions"
             for s in exceptional:
                 print('exception condition on', s.getpeername(), file=sys.stderr)
                 # Stop listening for input on the connection
-                inputs.remove(s)
-                if s in outputs:
-                    outputs.remove(s)
+                self.inputs.remove(s)
+                if s in self.outputs:
+                    self.outputs.remove(s)
                 s.close()
 
                 # Remove message queue
-                del message_queues[s] 
+                del self.message_queues[s]
+        
+    def _isEmissorHIMsg(self, message: BaseHeader):
+        return message.origin >= Server.MINEXIID and message.origin < Server.MAXEXID
+    
+    def _isExhibitorHIMsg(self, message: BaseHeader):
+        return message.origin == 0
+    
+    def _exhibitorExists(self, exhibitorId):
+        return exhibitorId in self.exihibitors
+    
+    def _treatHIMessage(self, bMessage, inSocket):
+        self.sequence += 1
+        responseMessage = ""
+        sockToAnswer = -1
+
+        inMessage = BaseHeader()
+        inMessage.fromBytes(bMessage)
+        print('Received {} from {}'.format(inMessage, inSocket.getpeername()), file=sys.stderr,)
+        
+        if self._isEmissorHIMsg(inMessage):
+            if(self._exhibitorExists(inMessage.origin)):
+                newId = self.generateEmitterId()
+                self.emitters.append(newId)
+                self.takenExhibitors.append(inMessage.origin)
+                responseMessage = self.getOKMessageFor(newId)
+                self.clientsInfo[newId] = {'socket': inSocket, 'exhibitor': inMessage.origin} 
+            else:
+                responseMessage = self.getErrorMessageFor(0)
+            
+            sockToAnswer = inSocket
+                
+        elif self._isExhibitorHIMsg(inMessage):
+            #É um exibidor
+            myMessage = BaseHeader()
+            newId = self.generateExihibitorId()
+            print(f"GENERATED ID: {newId}")
+            self.exihibitors.append(newId)
+            
+            responseMessage = self.getOKMessageFor(newId)
+
+            self.clientsInfo[newId] = {'socket': inSocket}
+
+            sockToAnswer = inSocket
+        
+        return responseMessage, sockToAnswer
 
     def treatMessage(self, bytesMessage, inSocket):
         responseMessage = None
@@ -147,38 +218,17 @@ class Server(Communicator):
         messageType = struct.unpack("H", bytesMessage[0:2])[0]
         
         if  messageType == 3:
-            self.sequence += 1
-            inMessage = BaseHeader()
-            inMessage.fromBytes(bytesMessage)
             
-            if inMessage.origin >= 2**12 and inMessage.origin < 2**13:
-                #É um emissor
-                pass
-            elif inMessage.origin == 0:
-                #É um exibidor
-                myMessage = BaseHeader()
-                newId = self.generateExihibitorId()
-                print(f"GENERATED ID: {newId}")
-                self.exihibitors.append(newId)
-                
-                message = {}
-                message['origin'] = Communicator.SERVID 
-                message['destiny'] = newId
-                message['type'] = 1
-                message['sequence'] = self.sequence
-                myMessage.setAttr(message)
-                responseMessage = myMessage.toBytes()
-
-                self.clientsInfo[newId] = {'socket': inSocket}
-
-                sockToAnswer = inSocket  
+            responseMessage, sockToAnswer = self._treatHIMessage(bytesMessage, inSocket)
         
         elif messageType == 4:
             self.sequence += 1
             inMessage = BaseHeader()
             inMessage.fromBytes(bytesMessage)
+            print('Received {} from {}'.format(inMessage, inSocket.getpeername()), file=sys.stderr,)
             if inMessage.destiny in self.exihibitors:
-                exhibitorSocket = self.clientsInfo[inMessage.destiny]['Socket']
+                print("Encontrou ID EXHIBIDOR")
+                exhibitorSocket = self.clientsInfo[inMessage.destiny]['socket']
 
                 sockToAnswer = exhibitorSocket
 
@@ -187,10 +237,47 @@ class Server(Communicator):
                 message['destiny'] = inMessage.destiny
                 message['type'] = 4
                 message['sequence'] = self.sequence
+                myMessage = BaseHeader()
                 myMessage.setAttr(message)
                 responseMessage = myMessage.toBytes()
+            else:
+                print("NÃO Encontrou ID EXHIBIDOR")
+                responseMessage = self.getErrorMessageFor(inMessage.origin)
+                sockToAnswer = inSocket
+        
+        elif messageType == 8:
+            self.sequence += 1
+            inMessage = Parameter2BMessage()
+            inMessage.fromBytes(bytesMessage)
+            print('Received {} from {}'.format(inMessage, inSocket.getpeername()), file=sys.stderr,)
+
+            self.clientsInfo[inMessage.header.origin]['Planet'] = inMessage.message
+            responseMessage = self.getOKMessageFor(inMessage.header.origin)
+
+            sockToAnswer = inSocket
 
         return sockToAnswer, responseMessage                                   
+
+    def getErrorMessageFor(self, clientID):
+        inMessage = BaseHeader()
+        message = {}
+        message['origin'] = Communicator.SERVID
+        message['destiny'] = clientID
+        message['type'] = 4
+        message['sequence'] = self.sequence
+        inMessage.setAttr(message)
+        return inMessage.toBytes()
+    
+    def getOKMessageFor(self, clientID):
+        inMessage = BaseHeader()
+        message = {}
+        message['origin'] = Communicator.SERVID
+        message['destiny'] = clientID
+        message['type'] = 1
+        message['sequence'] = self.sequence
+        inMessage.setAttr(message)
+        return inMessage.toBytes()
+
 
 
 if __name__ == "__main__":

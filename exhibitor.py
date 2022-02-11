@@ -33,7 +33,7 @@ class Exhibitor(Client):
             self.sock.send(bMsg)
 
             shouldStop = True
-            pass
+            
 
         return shouldStop               
     

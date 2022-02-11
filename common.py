@@ -62,7 +62,7 @@ class Client(Communicator):
         sMsg.setAttr(message)
         bMsg = sMsg.toBytes()
 
-        print('{}: sending {!r}'.format(self.sock.getsockname(), bMsg), file=sys.stderr)
+        print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
         self.sock.send(bMsg)
 
         #Receber resposta
@@ -81,11 +81,12 @@ class Client(Communicator):
     def sendOrigin(self):
         #Enviar mensagem HI
         sMsg = Parameter2BMessage()
-        message = {'type': 3, 'origin': 0, 'destiny': 0, 'sequence':0, 'parameter': len(self.planet), 'message': self.planet}
+        message = {'type': 8, 'origin': self.myID, 'destiny': Communicator.SERVID,
+                     'sequence':0, 'parameter': len(self.planet), 'message': self.planet}
         sMsg.setAttr(message)
         bMsg = sMsg.toBytes()
 
-        print('{}: sending {!r}'.format(self.sock.getsockname(), bMsg), file=sys.stderr)
+        print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
         self.sock.send(bMsg)
 
         #Receber resposta
