@@ -38,9 +38,14 @@ class Emitter(Client):
 
             print('{}: sending {!r}'.format(self.sock.getsockname(), bMsg), file=sys.stderr)
             self.sock.send(bMsg)
-            
-            shouldStop = True
 
+            data = self.sock.recv(1024)
+
+            sMsg.fromBytes(data)
+
+            if sMsg.type == 1:
+                shouldStop = True
+        
         return shouldStop
 
 def runEmitter():
