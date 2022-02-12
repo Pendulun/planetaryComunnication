@@ -35,6 +35,10 @@ class Exhibitor(Client):
         elif messageType == 7:
 
             self._treatCLISTMessage(bytesMessage)
+        
+        elif messageType == 9:
+
+            self._treatPLANETMessage(bytesMessage)
             
         return shouldStop            
 
@@ -57,7 +61,11 @@ class Exhibitor(Client):
         print(f"< CLIST: {sMsg.message}")
 
         self._sendOKToServer()
-        
+    
+    def _treatPLANETMessage(self, bytesMessage):
+        sMsg = Parameter2BMessage()
+        sMsg.fromBytes(bytesMessage)
+        print(f"< PLANET of {sMsg.header.destiny}: {sMsg.message}")
 
     def _sendOKToServer(self):
         sMsg = BaseHeader()

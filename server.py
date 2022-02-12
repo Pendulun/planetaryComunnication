@@ -202,6 +202,10 @@ class Server(Communicator):
         elif messageType == 8:
 
             responses = self._treatOriginMessage(bytesMessage, inSocket)
+        
+        elif messageType == 9:
+
+            responses = self._treatPlanetMessage(bytesMessage, inSocket)
 
         return responses                                   
         
@@ -291,7 +295,7 @@ class Server(Communicator):
         inMessage.fromBytes(bytesMessage)
         print('Received {} from {}'.format(inMessage, inSocket.getpeername()), file=sys.stderr,)
 
-        self.clientsInfo[inMessage.header.origin]['Planet'] = inMessage.message
+        self.clientsInfo[inMessage.header.origin]['planet'] = inMessage.message
         responseMessage = self.getOKMessageFor(inMessage.header.origin)
 
         responses[inSocket] = responseMessage
@@ -413,6 +417,40 @@ class Server(Communicator):
 
         return responses
     
+    def _treatPlanetMessage(self, bytesMessage, inSocket):
+        self.sequence += 1
+        responses = {}
+        foundDestinyOfMessage = False
+        
+        inMessage = BaseHeader()
+        inMessage.fromBytes(bytesMessage)
+        print('Received {} from {}'.format(inMessage, inSocket.getpeername()), file=sys.stderr,)
+
+        emitterExhibitor = self.clientsInfo[inMessage.origin]['exhibitor']
+
+        if (inMessage.destiny in self.clientsInfo):
+            print("Encontrou o cliente")
+            foundDestinyOfMessage = True
+
+            emitterExhibitor = self.clientsInfo[inMessage.origin]['exhibitor']
+            exSocket = self.clientsInfo[emitterExhibitor]['socket']
+
+            destinyPlanet = self.clientsInfo[inMessage.destiny]['planet']
+
+            bMsg = self.getPLANETMessage(inMessage.origin, inMessage.destiny, inMessage.sequence, destinyPlanet)
+            responses[exSocket] = bMsg
+
+        else:
+            print("Não identificou o destino!")
+
+        if (foundDestinyOfMessage):
+            responses[inSocket] = self.getOKMessageFor(inMessage.origin)
+        else:
+            responses[inSocket] = self.getErrorMessageFor(inMessage.origin)
+
+        return responses
+        
+    
     def getCLISTMessage(self, destiny, parameter, message):
         sMsg = Parameter2BMessage()
 
@@ -426,6 +464,20 @@ class Server(Communicator):
 
         sMsg.setAttr(mensagem)
         return sMsg.toBytes()
+    
+    def getPLANETMessage(self, origin, destiny, sequence, planet):
+        sMsg = Parameter2BMessage()
+
+        message = {}
+        message['type'] = 9
+        message['origin'] = origin
+        message['destiny'] = destiny
+        message['sequence'] = sequence
+        message['parameter'] = len(planet)
+        message['message'] = planet
+        sMsg.setAttr(message)
+
+        return sMsg.toBytes()
 
 
     def getErrorMessageFor(self, clientID):
@@ -433,7 +485,7 @@ class Server(Communicator):
         message = {}
         message['origin'] = Communicator.SERVID
         message['destiny'] = clientID
-        message['type'] = 4
+        message['type'] = 2
         message['sequence'] = self.sequence
         inMessage.setAttr(message)
         return inMessage.toBytes()

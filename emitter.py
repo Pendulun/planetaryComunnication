@@ -41,6 +41,9 @@ class Emitter(Client):
         
         elif splitedCommand[0] == "CREQ":
             self._treatCREQCommand(splitedCommand)
+        
+        elif splitedCommand[0] == "PLANET":
+            self._treatPLANETCommand(splitedCommand)
 
         return shouldStop
     
@@ -100,6 +103,25 @@ class Emitter(Client):
         if len(splitedCommand) == 2:
             sMsg = BaseHeader()
             message = {'type': 6, 'origin': self.myID, 'destiny': int(splitedCommand[1]), 'sequence':0}
+            sMsg.setAttr(message)
+            bMsg = sMsg.toBytes()
+
+            print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
+            self.sock.send(bMsg)
+
+            data = self.sock.recv(1024)
+
+            sMsg.fromBytes(data)
+
+            if sMsg.type == 1:
+                print("> OK")
+            elif sMsg.type == 2:
+                print("> ERROR! SOMETHING WENT WRONG!")
+                
+    def _treatPLANETCommand(self, splitedCommand):
+        if len(splitedCommand) == 2:
+            sMsg = BaseHeader()
+            message = {'type': 9, 'origin': self.myID, 'destiny': int(splitedCommand[1]), 'sequence':0}
             sMsg.setAttr(message)
             bMsg = sMsg.toBytes()
 
