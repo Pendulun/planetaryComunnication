@@ -5,6 +5,7 @@ from common import SimpleMessage
 from common import BaseHeader
 from common import Client
 from common import Communicator
+from common import Parameter2BMessage
 
 def usage():
     print("python emitter.py <serverIP> <port>")
@@ -33,6 +34,11 @@ class Exhibitor(Client):
             self.sock.send(bMsg)
 
             shouldStop = True
+        
+        if messageType == 5:
+            sMsg = Parameter2BMessage()
+            sMsg.fromBytes(bytesMessage)
+            print(f"< Message from {sMsg.header.origin}: {sMsg.message}")
             
 
         return shouldStop               
@@ -40,6 +46,7 @@ class Exhibitor(Client):
     def answerRequestsUntilMustClose(self):
         shouldStop = False
         while(not shouldStop):
+            print("Esperando mensagem!")
             data = self.sock.recv(1024)
 
             shouldStop = self._treatMessage(data)

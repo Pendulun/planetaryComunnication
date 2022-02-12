@@ -1,9 +1,11 @@
+from lib2to3.pytree import Base
 import socket
 import sys
 from common import SimpleMessage
 from common import BaseHeader
 from common import Client
 from common import Communicator
+from common import Parameter2BMessage
 
 def usage():
     print("python emitter.py <serverIP> <port> <exihibitorID>")
@@ -20,7 +22,7 @@ class Emitter(Client):
     def readInputUntilMustClose(self):
         shouldStop = False
         while(not shouldStop):
-            print(">", end="")
+            print("> ", end="")
             command = input()
             shouldStop = self._treatCommand(command)
         
@@ -31,22 +33,64 @@ class Emitter(Client):
         splitedCommand = command.split(" ")
 
         if splitedCommand[0] == "KILL":
-            sMsg = BaseHeader()
-            message = {'type': 4, 'origin': self.myID, 'destiny': self.myExhibitorID, 'sequence':0}
+            
+            shouldStop = self._treatKillCommand()
+        
+        if splitedCommand[0] == "MSG":
+            self._treatMSGCommand(splitedCommand)
+        
+        return shouldStop
+    
+    def _treatKillCommand(self):
+        shouldStop = False
+        sMsg = BaseHeader()
+        message = {'type': 4, 'origin': self.myID, 'destiny': self.myExhibitorID, 'sequence':0}
+        sMsg.setAttr(message)
+        bMsg = sMsg.toBytes()
+
+        print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
+        self.sock.send(bMsg)
+
+        data = self.sock.recv(1024)
+
+        sMsg.fromBytes(data)
+
+        if sMsg.type == 1:
+            shouldStop = True
+        
+        return shouldStop
+
+    def _treatMSGCommand(self, splitedCommand):
+        
+        if(len(splitedCommand) >= 3):
+            sMsg = Parameter2BMessage()
+            message = {}
+            message['origin'] = self.myID
+            message['destiny'] = int(splitedCommand[1])
+            message['type'] = 5
+            message['sequence'] = 0
+            textMessage = " ".join(splitedCommand[2:])
+            message['parameter'] = len(textMessage)
+            message['message'] = textMessage
+
             sMsg.setAttr(message)
             bMsg = sMsg.toBytes()
 
-            print('{}: sending {!r}'.format(self.sock.getsockname(), bMsg), file=sys.stderr)
+            print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
+            
             self.sock.send(bMsg)
-
+            
+            #Rcv OK or ERROR
             data = self.sock.recv(1024)
+
+            sMsg = BaseHeader()
 
             sMsg.fromBytes(data)
 
             if sMsg.type == 1:
-                shouldStop = True
-        
-        return shouldStop
+                print("> OK")
+            elif sMsg.type == 2:
+                print("> ERROR! SOMETHING WENT WRONG!")
 
 def runEmitter():
 

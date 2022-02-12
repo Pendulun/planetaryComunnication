@@ -116,6 +116,7 @@ class Server(Communicator):
                         responses = self.treatMessage(data, s)
                         
                         for (socket, message) in responses.items():
+                            print("Identificou uma msg")
                             self.message_queues[socket].put(message)
                             if socket not in self.outputs:
                                 self.outputs.append(socket)
@@ -148,7 +149,11 @@ class Server(Communicator):
                             self.exihibitors.remove(exhibitorId)
                             del self.clientsInfo[exhibitorId]
                             shouldCloseConnection = True
-                            
+                    elif msgType == 5:
+                        sMsg = Parameter2BMessage()
+                        sMsg.fromBytes(next_msg)
+                        print('  sending {} to {}'.format(sMsg, s.getpeername()), file=sys.stderr)
+                    
                     if(self.message_queues[s].empty()):
                         self.outputs.remove(s)
                     
@@ -182,6 +187,10 @@ class Server(Communicator):
 
             responses = self._treatKillMessage(bytesMessage, inSocket)
         
+        elif messageType == 5:
+
+            responses = self._treatMSGMessage(bytesMessage, inSocket)
+        
         elif messageType == 8:
 
             responses = self._treatOriginMessage(bytesMessage, inSocket)
@@ -196,6 +205,9 @@ class Server(Communicator):
     
     def _exhibitorExists(self, exhibitorId):
         return exhibitorId in self.exihibitors
+    
+    def _emitterExists(self, id):
+        return id in self.emitters
     
     def _treatHIMessage(self, bMessage, inSocket):
         self.sequence += 1
@@ -275,6 +287,51 @@ class Server(Communicator):
         responseMessage = self.getOKMessageFor(inMessage.header.origin)
 
         responses[inSocket] = responseMessage
+
+        return responses
+    
+    def _treatMSGMessage(self, bytesMessage, inSocket):
+        self.sequence += 1
+
+        responses = {}
+
+        foundDestinyOfMessage = False
+
+        inMessage = Parameter2BMessage()
+        inMessage.fromBytes(bytesMessage)
+        print('Received {} from {}'.format(inMessage, inSocket.getpeername()), file=sys.stderr,)
+
+        if inMessage.header.destiny == 0:
+            print("Eh para todos os exibidores")
+            foundDestinyOfMessage = True
+            #Enviar para todos os exibidores
+            for exID in self.exihibitors:
+                print(f"Exibidor identificado: {exID}")
+                exSocket = self.clientsInfo[exID]['socket']
+                responses[exSocket] = bytesMessage
+
+        elif (self._exhibitorExists(inMessage.header.destiny)):
+            print("Eh para um exibidor apenas")
+            foundDestinyOfMessage = True
+            #É para um exibidor específico
+            exSocket = self.clientsInfo[inMessage.header.destiny]['socket']
+            responses[exSocket] = bytesMessage
+            
+        elif (self._emitterExists(inMessage.header.destiny)):
+            print("Eh para um emissor apenas")
+            foundDestinyOfMessage = True
+            #É para um emissor
+            emitterExhibitor = self.clientsInfo[inMessage.header.origin]['exhibitor']
+            exSocket = self.clientsInfo[emitterExhibitor]['socket']
+            responses[exSocket] = bytesMessage
+        else:
+            print("Não identificou o destino!")
+        
+        
+        if (foundDestinyOfMessage):
+            responses[inSocket] = self.getOKMessageFor(inMessage.header.origin)
+        else:
+            responses[inSocket] = self.getErrorMessageFor(inMessage.header.origin)
 
         return responses
 
