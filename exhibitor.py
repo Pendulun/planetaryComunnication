@@ -39,6 +39,10 @@ class Exhibitor(Client):
         elif messageType == 9:
 
             self._treatPLANETMessage(bytesMessage)
+        
+        elif messageType == 10:
+
+            self._treatPLANETLISTMessage(bytesMessage)
             
         return shouldStop            
 
@@ -66,6 +70,11 @@ class Exhibitor(Client):
         sMsg = Parameter2BMessage()
         sMsg.fromBytes(bytesMessage)
         print(f"< PLANET of {sMsg.header.destiny}: {sMsg.message}")
+    
+    def _treatPLANETLISTMessage(self, bytesMessage):
+        sMsg = Parameter2BMessage()
+        sMsg.fromBytes(bytesMessage)
+        print(f"< PLANETLIST: {sMsg.message}")
 
     def _sendOKToServer(self):
         sMsg = BaseHeader()

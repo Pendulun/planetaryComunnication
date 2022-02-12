@@ -45,6 +45,9 @@ class Emitter(Client):
         elif splitedCommand[0] == "PLANET":
             self._treatPLANETCommand(splitedCommand)
 
+        elif splitedCommand[0] == "PLANETLIST":
+            self._treatPLANETLISTCommand(splitedCommand)
+
         return shouldStop
     
     def _treatKillCommand(self):
@@ -136,6 +139,26 @@ class Emitter(Client):
                 print("> OK")
             elif sMsg.type == 2:
                 print("> ERROR! SOMETHING WENT WRONG!")
+    
+    def _treatPLANETLISTCommand(self, splitedCommand):
+        if len(splitedCommand) == 1:
+            sMsg = BaseHeader()
+            message = {'type': 10, 'origin': self.myID, 'destiny': Communicator.SERVID, 'sequence':0}
+            sMsg.setAttr(message)
+            bMsg = sMsg.toBytes()
+
+            print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
+            self.sock.send(bMsg)
+
+            data = self.sock.recv(1024)
+
+            sMsg.fromBytes(data)
+
+            if sMsg.type == 1:
+                print("> OK")
+            elif sMsg.type == 2:
+                print("> ERROR! SOMETHING WENT WRONG!")
+
 
 def runEmitter():
 

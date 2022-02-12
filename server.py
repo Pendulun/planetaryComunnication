@@ -206,6 +206,10 @@ class Server(Communicator):
         elif messageType == 9:
 
             responses = self._treatPlanetMessage(bytesMessage, inSocket)
+        
+        elif messageType == 10:
+
+            responses = self._treatPlanetListMessage(bytesMessage, inSocket)
 
         return responses                                   
         
@@ -450,6 +454,39 @@ class Server(Communicator):
 
         return responses
         
+    def _treatPlanetListMessage(self, bytesMessage, inSocket):
+        self.sequence += 1
+        responses = {}
+        foundDestinyOfMessage = False
+        
+        inMessage = BaseHeader()
+        inMessage.fromBytes(bytesMessage)
+        print('Received {} from {}'.format(inMessage, inSocket.getpeername()), file=sys.stderr,)
+
+        if "exhibitor" in self.clientsInfo[inMessage.origin]:
+            foundDestinyOfMessage = True
+
+            emitterExhibitor = self.clientsInfo[inMessage.origin]['exhibitor']
+            exSocket = self.clientsInfo[emitterExhibitor]['socket']
+
+            planetList = set()
+
+            for (_, clientInfo) in self.clientsInfo.items():
+                clientPlanet = clientInfo['planet']
+                planetList.add(clientPlanet)
+            
+            planetList = " ".join(list(planetList))
+
+            bMsg = self.getPLANETLISTMessage(emitterExhibitor, planetList)
+            responses[exSocket] = bMsg
+            
+
+        if (foundDestinyOfMessage):
+            responses[inSocket] = self.getOKMessageFor(inMessage.origin)
+        else:
+            responses[inSocket] = self.getErrorMessageFor(inMessage.origin)
+
+        return responses
     
     def getCLISTMessage(self, destiny, parameter, message):
         sMsg = Parameter2BMessage()
@@ -475,6 +512,20 @@ class Server(Communicator):
         message['sequence'] = sequence
         message['parameter'] = len(planet)
         message['message'] = planet
+        sMsg.setAttr(message)
+
+        return sMsg.toBytes()
+    
+    def getPLANETLISTMessage(self, exhibitorID, planetList):
+        sMsg = Parameter2BMessage()
+
+        message = {}
+        message['type'] = 10
+        message['origin'] = Communicator.SERVID
+        message['destiny'] = exhibitorID
+        message['sequence'] = self.sequence
+        message['parameter'] = len(planetList)
+        message['message'] = planetList
         sMsg.setAttr(message)
 
         return sMsg.toBytes()
