@@ -39,6 +39,7 @@ class Exhibitor(Client):
         return shouldStop            
 
     def _treatKillMsg(self):
+        print("< kill")
         self._sendOKToServer()
 
         shouldStop = True
@@ -53,7 +54,7 @@ class Exhibitor(Client):
     def _treatCLISTMessage(self, bytesMessage):
         sMsg = Parameter2BMessage()
         sMsg.fromBytes(bytesMessage)
-        print(f"< Message from {sMsg.header.origin}: {sMsg.message}")
+        print(f"< CLIST: {sMsg.message}")
 
         self._sendOKToServer()
         
