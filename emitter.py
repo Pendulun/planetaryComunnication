@@ -36,9 +36,12 @@ class Emitter(Client):
             
             shouldStop = self._treatKillCommand()
         
-        if splitedCommand[0] == "MSG":
+        elif splitedCommand[0] == "MSG":
             self._treatMSGCommand(splitedCommand)
         
+        elif splitedCommand[0] == "CREQ":
+            self._treatCREQCommand(splitedCommand)
+
         return shouldStop
     
     def _treatKillCommand(self):
@@ -84,6 +87,26 @@ class Emitter(Client):
             data = self.sock.recv(1024)
 
             sMsg = BaseHeader()
+
+            sMsg.fromBytes(data)
+
+            if sMsg.type == 1:
+                print("> OK")
+            elif sMsg.type == 2:
+                print("> ERROR! SOMETHING WENT WRONG!")
+    
+    def _treatCREQCommand(self, splitedCommand):
+        
+        if len(splitedCommand) == 2:
+            sMsg = BaseHeader()
+            message = {'type': 6, 'origin': self.myID, 'destiny': int(splitedCommand[1]), 'sequence':0}
+            sMsg.setAttr(message)
+            bMsg = sMsg.toBytes()
+
+            print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
+            self.sock.send(bMsg)
+
+            data = self.sock.recv(1024)
 
             sMsg.fromBytes(data)
 

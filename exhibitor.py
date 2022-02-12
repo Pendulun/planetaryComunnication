@@ -1,3 +1,4 @@
+from lib2to3.pytree import Base
 import socket
 import sys
 import struct
@@ -25,23 +26,46 @@ class Exhibitor(Client):
         
         if  messageType == 4:
 
-            sMsg = BaseHeader()
-            message = {'type': 1, 'origin': self.myID, 'destiny': Communicator.SERVID, 'sequence':0}
-            sMsg.setAttr(message)
-            bMsg = sMsg.toBytes()
-
-            print('{}: sending {!r}'.format(self.sock.getsockname(), bMsg), file=sys.stderr)
-            self.sock.send(bMsg)
-
-            shouldStop = True
+            shouldStop = self._treatKillMsg()
         
-        if messageType == 5:
-            sMsg = Parameter2BMessage()
-            sMsg.fromBytes(bytesMessage)
-            print(f"< Message from {sMsg.header.origin}: {sMsg.message}")
-            
+        elif messageType == 5:
 
-        return shouldStop               
+            self._treatMSGMessage(bytesMessage)
+        
+        elif messageType == 7:
+
+            self._treatCLISTMessage(bytesMessage)
+            
+        return shouldStop            
+
+    def _treatKillMsg(self):
+        self._sendOKToServer()
+
+        shouldStop = True
+
+        return shouldStop
+    
+    def _treatMSGMessage(self, bytesMessage):
+        sMsg = Parameter2BMessage()
+        sMsg.fromBytes(bytesMessage)
+        print(f"< Message from {sMsg.header.origin}: {sMsg.message}")
+    
+    def _treatCLISTMessage(self, bytesMessage):
+        sMsg = Parameter2BMessage()
+        sMsg.fromBytes(bytesMessage)
+        print(f"< Message from {sMsg.header.origin}: {sMsg.message}")
+
+        self._sendOKToServer()
+        
+
+    def _sendOKToServer(self):
+        sMsg = BaseHeader()
+        message = {'type': 1, 'origin': self.myID, 'destiny': Communicator.SERVID, 'sequence':0}
+        sMsg.setAttr(message)
+        bMsg = sMsg.toBytes()
+
+        print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
+        self.sock.send(bMsg)
     
     def answerRequestsUntilMustClose(self):
         shouldStop = False

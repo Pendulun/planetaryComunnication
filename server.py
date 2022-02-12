@@ -179,7 +179,11 @@ class Server(Communicator):
 
         responses = {}
         
-        if  messageType == 3:
+        if messageType == 1:
+            #OK Message
+            pass
+
+        elif  messageType == 3:
             
             responses = self._treatHIMessage(bytesMessage, inSocket)
         
@@ -190,6 +194,10 @@ class Server(Communicator):
         elif messageType == 5:
 
             responses = self._treatMSGMessage(bytesMessage, inSocket)
+        
+        elif messageType == 6:
+
+            responses = self._treatCREQMessage(bytesMessage, inSocket)
         
         elif messageType == 8:
 
@@ -334,6 +342,91 @@ class Server(Communicator):
             responses[inSocket] = self.getErrorMessageFor(inMessage.header.origin)
 
         return responses
+
+
+    def _treatCREQMessage(self, bytesMessage, inSocket):
+        self.sequence += 1
+        responses = {}
+        foundDestinyOfMessage = False
+
+        inMessage = BaseHeader()
+        inMessage.fromBytes(bytesMessage)
+        print('Received {} from {}'.format(inMessage, inSocket.getpeername()), file=sys.stderr,)
+
+        clientList = self.clientsInfo.keys()
+        clientListString = " ".join([str(client) for client in clientList])
+        numClients = len(clientList)
+
+        if inMessage.destiny == 0:
+            print("Eh para todos os clientes")
+            foundDestinyOfMessage = True
+            
+            exhibitorsToBeSent = []
+
+            for emitterID in self.emitters:
+                print(f"Emitter identificado: {emitterID}")
+                emitterExhibitor = self.clientsInfo[emitterID]['exhibitor']
+                
+                exhibitorsToBeSent.append(emitterExhibitor)
+
+                exSocket = self.clientsInfo[emitterExhibitor]['socket']
+                bMsg = self.getCLISTMessage(emitterExhibitor, numClients, clientListString)
+
+                responses[exSocket] = bMsg
+
+            for exID in self.exihibitors:
+                if exID not in exhibitorsToBeSent:
+
+                    print(f"Exhibitor identificado: {exID}")
+
+                    exSocket = self.clientsInfo[exID]['socket']
+                    bMsg = self.getCLISTMessage(exID, numClients, clientListString)
+                    
+                    responses[exSocket] = bMsg
+
+        elif (self._exhibitorExists(inMessage.destiny)):
+            print("Eh para um exibidor apenas")
+            foundDestinyOfMessage = True
+
+            exSocket = self.clientsInfo[inMessage.destiny]['socket']
+
+            bMsg = self.getCLISTMessage(inMessage.destiny, numClients, clientListString) 
+            responses[exSocket] = bMsg
+            
+        elif (self._emitterExists(inMessage.destiny)):
+            print("Eh para um emissor apenas")
+            foundDestinyOfMessage = True
+
+            emitterExhibitor = self.clientsInfo[inMessage.origin]['exhibitor']
+            exSocket = self.clientsInfo[emitterExhibitor]['socket']
+
+            bMsg = self.getCLISTMessage(emitterExhibitor, numClients, clientListString) 
+            responses[exSocket] = bMsg
+
+        else:
+            print("Não identificou o destino!")
+
+        if (foundDestinyOfMessage):
+            responses[inSocket] = self.getOKMessageFor(inMessage.origin)
+        else:
+            responses[inSocket] = self.getErrorMessageFor(inMessage.origin)
+
+        return responses
+    
+    def getCLISTMessage(self, destiny, parameter, message):
+        sMsg = Parameter2BMessage()
+
+        mensagem = {}
+        mensagem['type'] = 7
+        mensagem['origin'] = Communicator.SERVID
+        mensagem['destiny'] = destiny
+        mensagem['sequence'] = self.sequence
+        mensagem['parameter'] = parameter
+        mensagem['message'] = message
+
+        sMsg.setAttr(mensagem)
+        return sMsg.toBytes()
+
 
     def getErrorMessageFor(self, clientID):
         inMessage = BaseHeader()
