@@ -59,7 +59,7 @@ class Client(Communicator):
         
         if(self.checkForHI()):
             print(f"MY ID< {self.myID}")
-            #ORIGIN
+            
             self.planet = input("WRITE ORIGIN PLANET> ")
             if(self.sendOrigin()):
                 return True
@@ -80,7 +80,7 @@ class Client(Communicator):
         self.sock.send(bMsg)
         self.sequence += 1
 
-        #Receber resposta
+        
         data = self.sock.recv(1024)
         sMsg.fromBytes(data)
 
@@ -94,7 +94,7 @@ class Client(Communicator):
         raise NotImplementedError
     
     def sendOrigin(self):
-        #Enviar mensagem HI
+        
         sMsg = Parameter2BMessage()
         message = {'type': Communicator.ORIGIN_MSG_ID, 'origin': self.myID, 'destiny': Communicator.SERVID,
                      'sequence':self.sequence, 'parameter': len(self.planet), 'message': self.planet}
@@ -104,7 +104,7 @@ class Client(Communicator):
         self.sock.send(bMsg)
         self.sequence += 1
 
-        #Receber resposta
+        
         data = self.sock.recv(1024)
         sMsg = BaseHeader()
         sMsg.fromBytes(data)
