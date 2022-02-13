@@ -4,6 +4,21 @@ import sys
 
 class Communicator():
     SERVID = (2**16) - 1
+    NO_EXHIBITOR_ID = -1
+    ALL_EXHIBITORS = 0
+    ALL_CLIENTS = 0
+    EXHIBITOR_HI_MSG_ID = 0
+
+    OK_MSG_ID = 1
+    ERROR_MSG_ID = 2
+    HI_MSG_ID = 3
+    KILL_MSG_ID = 4
+    MSG_MSG_ID = 5
+    CREQ_MSG_ID = 6
+    CLIST_MSG_ID = 7
+    ORIGIN_MSG_ID = 8
+    PLANET_MSG_ID = 9
+    PLANETLIST_MSG_ID = 10
 
 class Client(Communicator):
     def __init__(self):
@@ -41,34 +56,31 @@ class Client(Communicator):
         self.connected = True
         
         if(self.checkForHI()):
-            print(f"MY ID: {self.myID}")
+            print(f"MY ID< {self.myID}")
             #ORIGIN
-            self.planet = input("WRITE ORIGIN PLANET:\n> ")
+            self.planet = input("WRITE ORIGIN PLANET> ")
             if(self.sendOrigin()):
                 return True
             else:
-                self._shutdownWithError("Send ORIGIN Failed!")
+                self._shutdownWithError("< Send ORIGIN Failed!")
                 return False
         else:
-            self._shutdownWithError("Send HI Failed!")
+            self._shutdownWithError("< Send HI Failed!")
             return False
-        
-        return True
     
     def checkForHI(self):
-        #Enviar mensagem HI
+
         sMsg = BaseHeader()
         message = self._messageForHI()
         sMsg.setAttr(message)
         bMsg = sMsg.toBytes()
 
-        print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
         self.sock.send(bMsg)
 
         #Receber resposta
         data = self.sock.recv(1024)
         sMsg.fromBytes(data)
-        print('{}: received {}'.format(self.sock.getsockname(), data), file=sys.stderr)
+
         if(sMsg.type == 1):
             self.myID = sMsg.destiny
             return True
@@ -81,19 +93,18 @@ class Client(Communicator):
     def sendOrigin(self):
         #Enviar mensagem HI
         sMsg = Parameter2BMessage()
-        message = {'type': 8, 'origin': self.myID, 'destiny': Communicator.SERVID,
+        message = {'type': Communicator.ORIGIN_MSG_ID, 'origin': self.myID, 'destiny': Communicator.SERVID,
                      'sequence':0, 'parameter': len(self.planet), 'message': self.planet}
         sMsg.setAttr(message)
         bMsg = sMsg.toBytes()
 
-        print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
         self.sock.send(bMsg)
 
         #Receber resposta
         data = self.sock.recv(1024)
         sMsg = BaseHeader()
         sMsg.fromBytes(data)
-        print('{}: received {}'.format(self.sock.getsockname(), data), file=sys.stderr)
+        
         if(sMsg.type == 1):
             return True
         else:
@@ -103,31 +114,6 @@ class Client(Communicator):
         print("Disconnecting from server!")
         self.sock.close()
         self._clearAttr()
-
-
-
-class MessageEncoderDecoder():
-    
-    def decode(self, bytes):
-        messageTypeBytes = str(struct.unpack('h', bytes[0:2])[0])
-        messageOriginBytes = str(struct.unpack('h', bytes[2:4])[0])
-        messageDestinyBytes = str(struct.unpack('h', bytes[4:6])[0])
-        messageSequenceBytes = str(struct.unpack('h', bytes[6:8])[0])
-        messageHeader = " ".join([messageTypeBytes, messageOriginBytes, messageDestinyBytes, messageSequenceBytes])
-
-        return messageHeader
-
-
-    def encode(self, message: dict):
-        messageTypeBytes = struct.pack('h', message['type'])
-        messageOriginBytes = struct.pack('h', message['origin'])
-        messageDestinyBytes = struct.pack('h', message['destiny'])
-        messageSequenceBytes = struct.pack('h', message['sequence'])
-
-        messageHeader = b"".join([messageTypeBytes, messageOriginBytes, messageDestinyBytes, messageSequenceBytes])
-        print(messageHeader)
-
-        return messageHeader
 
 class BaseHeader():
     """
@@ -166,35 +152,6 @@ class BaseHeader():
         self.origin = message['origin']
         self.destiny = message['destiny']
         self.sequence = message['sequence']
-
-class SimpleMessage():
-    """"
-    A Message that contains the base headers and a message to be sent along with it
-    """
-
-    def __init__(self):
-        self.header = BaseHeader()
-        self.message = ""
-    
-    def fromBytes(self, bytes):
-        self.header.fromBytes(bytes)
-        #self.message = str(struct.unpack('s', bytes[8:-1])[0])
-        self.message = bytes[8:].decode()
-
-    def __str__(self):
-        return " ".join([self.header.__str__(), str(self.message)])
-    
-    def toBytes(self):
-        #messageBytes = struct.pack('s', self.message)
-        messageBytes = self.message.encode()
-
-        completeMessage = b"".join([self.header.toBytes(), messageBytes])
-
-        return completeMessage
-
-    def setAttr(self, message: dict):
-        self.header.setAttr(message)
-        self.message = message['message']
 
 class Parameter2BMessage():
     """"

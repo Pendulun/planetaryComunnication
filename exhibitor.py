@@ -1,15 +1,12 @@
-from lib2to3.pytree import Base
 import socket
 import sys
-import struct
-from common import SimpleMessage
 from common import BaseHeader
 from common import Client
 from common import Communicator
 from common import Parameter2BMessage
 
 def usage():
-    print("python emitter.py <serverIP> <port>")
+    print("python emitter.py <serverIP>:<port>")
 
 class Exhibitor(Client):
 
@@ -17,37 +14,41 @@ class Exhibitor(Client):
         super().__init__()
     
     def _messageForHI(self):
-        return {'type': 3, 'origin': 0, 'destiny': Communicator.SERVID, 'sequence':0}
+        return {'type': Communicator.HI_MSG_ID, 'origin': Communicator.EXHIBITOR_HI_MSG_ID,
+                'destiny': Communicator.SERVID, 'sequence':0}
     
     def _treatMessage(self, bytesMessage):
         shouldStop = False
 
-        messageType = struct.unpack("H", bytesMessage[0:2])[0]
+        sMsg = BaseHeader()
+        sMsg.fromBytes(bytesMessage)
+
+        messageType = sMsg.type
         
-        if  messageType == 4:
+        if  messageType == Communicator.KILL_MSG_ID:
 
             shouldStop = self._treatKillMsg()
         
-        elif messageType == 5:
+        elif messageType == Communicator.MSG_MSG_ID:
 
             self._treatMSGMessage(bytesMessage)
         
-        elif messageType == 7:
+        elif messageType == Communicator.CLIST_MSG_ID:
 
             self._treatCLISTMessage(bytesMessage)
         
-        elif messageType == 9:
+        elif messageType == Communicator.PLANET_MSG_ID:
 
             self._treatPLANETMessage(bytesMessage)
         
-        elif messageType == 10:
+        elif messageType == Communicator.PLANETLIST_MSG_ID:
 
             self._treatPLANETLISTMessage(bytesMessage)
             
         return shouldStop            
 
     def _treatKillMsg(self):
-        print("< kill")
+        print("KILL< ")
         self._sendOKToServer()
 
         shouldStop = True
@@ -57,32 +58,31 @@ class Exhibitor(Client):
     def _treatMSGMessage(self, bytesMessage):
         sMsg = Parameter2BMessage()
         sMsg.fromBytes(bytesMessage)
-        print(f"< Message from {sMsg.header.origin}: {sMsg.message}")
+        print(f"MESSAGE from {sMsg.header.origin}< {sMsg.message}")
     
     def _treatCLISTMessage(self, bytesMessage):
         sMsg = Parameter2BMessage()
         sMsg.fromBytes(bytesMessage)
-        print(f"< CLIST: {sMsg.message}")
+        print(f"CLIST< {sMsg.message}")
 
         self._sendOKToServer()
     
     def _treatPLANETMessage(self, bytesMessage):
         sMsg = Parameter2BMessage()
         sMsg.fromBytes(bytesMessage)
-        print(f"< PLANET of {sMsg.header.destiny}: {sMsg.message}")
+        print(f"PLANET of {sMsg.header.destiny}< {sMsg.message}")
     
     def _treatPLANETLISTMessage(self, bytesMessage):
         sMsg = Parameter2BMessage()
         sMsg.fromBytes(bytesMessage)
-        print(f"< PLANETLIST: {sMsg.message}")
+        print(f"PLANETLIST< {sMsg.message}")
 
     def _sendOKToServer(self):
         sMsg = BaseHeader()
-        message = {'type': 1, 'origin': self.myID, 'destiny': Communicator.SERVID, 'sequence':0}
+        message = {'type': Communicator.OK_MSG_ID, 'origin': self.myID, 'destiny': Communicator.SERVID, 'sequence':0}
         sMsg.setAttr(message)
         bMsg = sMsg.toBytes()
 
-        print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
         self.sock.send(bMsg)
     
     def answerRequestsUntilMustClose(self):
@@ -100,7 +100,9 @@ def runExhibitor():
 
     exhibitor = Exhibitor()
 
-    if(exhibitor.connectWith(sys.argv[1], int(sys.argv[2]))):
+    serverAddr = sys.argv[1].split(":")
+
+    if(len(serverAddr) == 2 and exhibitor.connectWith(serverAddr[0], int(serverAddr[1]))):
         print("Se conectou!")
         exhibitor.answerRequestsUntilMustClose()
     else:
@@ -108,9 +110,8 @@ def runExhibitor():
         exit(1)
     
     
-
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 2:
         usage()
         exit(1)
     
