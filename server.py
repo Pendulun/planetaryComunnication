@@ -246,7 +246,7 @@ class Server(Communicator):
         return id >= Server.MINEXIID and id < Server.MAXEXID
 
     def _isEmissorHIMsg(self, message: BaseHeader):
-        return message.origin == Communicator.NO_EXHIBITOR_ID or self._idIsInEmitterRange(message.origin)
+        return message.origin != Communicator.EXHIBITOR_HI_MSG_ID
     
     def _isExhibitorHIMsg(self, message: BaseHeader):
         return message.origin == Communicator.EXHIBITOR_HI_MSG_ID
@@ -265,12 +265,11 @@ class Server(Communicator):
         inMessage = BaseHeader()
         inMessage.fromBytes(bMessage)
         print("received HI")
-        
+
         if self._isEmissorHIMsg(inMessage):
             responseMessage = ""
             exhibitorExists = self._exhibitorExists(inMessage.origin)
             if(exhibitorExists or inMessage.origin == Communicator.NO_EXHIBITOR_ID):
-
                 newId = self.generateEmitterId()
                 self.idToSocketMap[newId] = inSocket
                 self.emitters.append(newId)
@@ -371,8 +370,9 @@ class Server(Communicator):
 
             foundDestinyOfMessage = True
             emitterExhibitor = self.clientsInfo[inMessage.header.origin]['exhibitor']
-            exSocket = self.clientsInfo[emitterExhibitor]['socket']
-            responses[exSocket] = bytesMessage
+            if emitterExhibitor in self.takenExhibitors:
+                exSocket = self.clientsInfo[emitterExhibitor]['socket']
+                responses[exSocket] = bytesMessage
         
 
         if (foundDestinyOfMessage):
@@ -440,9 +440,10 @@ class Server(Communicator):
             foundDestinyOfMessage = True
 
             emitterExhibitor = self.clientsInfo[inMessage.origin]['exhibitor']
-            exSocket = self.clientsInfo[emitterExhibitor]['socket']
-            bMsg = self.getCLISTMessage(emitterExhibitor, numClients, clientListString) 
-            responses[exSocket] = bMsg
+            if emitterExhibitor in self.takenExhibitors:
+                exSocket = self.clientsInfo[emitterExhibitor]['socket']
+                bMsg = self.getCLISTMessage(emitterExhibitor, numClients, clientListString) 
+                responses[exSocket] = bMsg
 
         if (foundDestinyOfMessage):
             responses[inSocket] = self.getOKMessageFor(inMessage.origin)

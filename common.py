@@ -4,7 +4,7 @@ import sys
 
 class Communicator():
     SERVID = (2**16) - 1
-    NO_EXHIBITOR_ID = -1
+    NO_EXHIBITOR_ID = 1
     ALL_EXHIBITORS = 0
     ALL_CLIENTS = 0
     EXHIBITOR_HI_MSG_ID = 0
@@ -110,8 +110,10 @@ class Client(Communicator):
         sMsg.fromBytes(data)
 
         if(sMsg.type == 1):
+            print("< OK")
             return True
         else:
+            print("< Send ORIGIN failed!")
             return False
         
     def disconnectFromServer(self):

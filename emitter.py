@@ -20,7 +20,7 @@ class Emitter(Client):
     
     def _clearAttr(self):
         super()._clearAttr()
-        self.myExhibitorID = -1
+        self.myExhibitorID = Communicator.NO_EXHIBITOR_ID
 
     def readInputUntilMustClose(self):
         shouldStop = False
@@ -60,7 +60,9 @@ class Emitter(Client):
         sMsg = BaseHeader()
         message = {'type': Communicator.KILL_MSG_ID, 'origin': self.myID, 'destiny': self.myExhibitorID,
                      'sequence':self.sequence}
+
         sMsg.setAttr(message)
+
         bMsg = sMsg.toBytes()
 
         self.sock.send(bMsg)
@@ -89,20 +91,24 @@ class Emitter(Client):
             message['parameter'] = len(textMessage)
             message['message'] = textMessage
 
-            sMsg.setAttr(message)
-            bMsg = sMsg.toBytes()
-            self.sequence += 1
+            try:
+                sMsg.setAttr(message)
+                bMsg = sMsg.toBytes()
+                self.sequence += 1
+                
+                self.sock.send(bMsg)
+                
+                #Rcv OK or ERROR
+                data = self.sock.recv(1024)
+
+                sMsg = BaseHeader()
+
+                sMsg.fromBytes(data)
+
+                self._printOKERRORMSGType(sMsg.type)
+            except:
+                print("< SOMETHING WRONG WITH THE MESSAGE! Usage: MSG <destinyID> <message>")
             
-            self.sock.send(bMsg)
-            
-            #Rcv OK or ERROR
-            data = self.sock.recv(1024)
-
-            sMsg = BaseHeader()
-
-            sMsg.fromBytes(data)
-
-            self._printOKERRORMSGType(sMsg.type)
         else:
             print("< UNKNOWN COMMAND! Usage: MSG <destinyID> <message>")
     
@@ -112,17 +118,22 @@ class Emitter(Client):
             sMsg = BaseHeader()
             message = {'type': Communicator.CREQ_MSG_ID, 'origin': self.myID, 'destiny': int(splitedCommand[1]),
                          'sequence':self.sequence}
-            sMsg.setAttr(message)
-            bMsg = sMsg.toBytes()
+            
+            try:
+                sMsg.setAttr(message)
+                bMsg = sMsg.toBytes()
 
-            self.sock.send(bMsg)
-            self.sequence += 1
+                self.sock.send(bMsg)
+                self.sequence += 1
 
-            data = self.sock.recv(1024)
+                data = self.sock.recv(1024)
 
-            sMsg.fromBytes(data)
+                sMsg.fromBytes(data)
 
-            self._printOKERRORMSGType(sMsg.type)
+                self._printOKERRORMSGType(sMsg.type)
+
+            except:
+                print("< SOMETHING WRONG WITH THE COMMAND! Usage: CREQ <destinyID>")
         else:
             print("< UNKNOWN COMMAND! Usage: CREQ <destinyID>")
                 
@@ -132,16 +143,19 @@ class Emitter(Client):
             message = {'type': Communicator.PLANET_MSG_ID, 'origin': self.myID, 'destiny': int(splitedCommand[1]),
                          'sequence':self.sequence}
             sMsg.setAttr(message)
-            bMsg = sMsg.toBytes()
+            try:
+                bMsg = sMsg.toBytes()
 
-            self.sock.send(bMsg)
-            self.sequence += 1
+                self.sock.send(bMsg)
+                self.sequence += 1
 
-            data = self.sock.recv(1024)
+                data = self.sock.recv(1024)
 
-            sMsg.fromBytes(data)
+                sMsg.fromBytes(data)
 
-            self._printOKERRORMSGType(sMsg.type)
+                self._printOKERRORMSGType(sMsg.type)
+            except:
+                print("< SOMETHING WRONG WITH THE COMMAND! Usage: PLANET <destinyID>")
         else:
             print("< UNKNOWN COMMAND! Usage: PLANET <destinyID>")
     
@@ -179,6 +193,7 @@ def runEmitter():
 
     emitter = Emitter(exhibitorID)
     serverAddr = sys.argv[1].split(":")
+    print(f"{serverAddr}")
 
     if(len(serverAddr) == 2 and emitter.connectWith(serverAddr[0], int(serverAddr[1]))):
         emitter.readInputUntilMustClose()
