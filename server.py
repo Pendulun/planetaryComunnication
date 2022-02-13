@@ -184,13 +184,7 @@ class Server(Communicator):
             for s in exceptional:
                 print('exception condition on', s.getpeername(), file=sys.stderr)
                 # Stop listening for input on the connection
-                self.inputs.remove(s)
-                if s in self.outputs:
-                    self.outputs.remove(s)
-                s.close()
-
-                # Remove message queue
-                del self.message_queues[s]
+                self._closeConnectionWith(s)
     
     def treatMessage(self, bytesMessage, inSocket):
 
