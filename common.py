@@ -26,12 +26,14 @@ class Client(Communicator):
         self.sock = -1
         self.connected = False
         self.planet = ""
+        self.sequence = 0
     
     def _clearAttr(self):
         self.myID = -1
         self.sock = -1
         self.connected = False
         self.planet = ""
+        self.sequence = 0
     
     def _shutdownWithError(self, errorMsg):
         print(f"Error: {errorMsg}")
@@ -76,6 +78,7 @@ class Client(Communicator):
         bMsg = sMsg.toBytes()
 
         self.sock.send(bMsg)
+        self.sequence += 1
 
         #Receber resposta
         data = self.sock.recv(1024)
@@ -94,17 +97,18 @@ class Client(Communicator):
         #Enviar mensagem HI
         sMsg = Parameter2BMessage()
         message = {'type': Communicator.ORIGIN_MSG_ID, 'origin': self.myID, 'destiny': Communicator.SERVID,
-                     'sequence':0, 'parameter': len(self.planet), 'message': self.planet}
+                     'sequence':self.sequence, 'parameter': len(self.planet), 'message': self.planet}
         sMsg.setAttr(message)
         bMsg = sMsg.toBytes()
 
         self.sock.send(bMsg)
+        self.sequence += 1
 
         #Receber resposta
         data = self.sock.recv(1024)
         sMsg = BaseHeader()
         sMsg.fromBytes(data)
-        
+
         if(sMsg.type == 1):
             return True
         else:

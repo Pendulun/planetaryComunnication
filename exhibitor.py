@@ -15,7 +15,7 @@ class Exhibitor(Client):
     
     def _messageForHI(self):
         return {'type': Communicator.HI_MSG_ID, 'origin': Communicator.EXHIBITOR_HI_MSG_ID,
-                'destiny': Communicator.SERVID, 'sequence':0}
+                'destiny': Communicator.SERVID, 'sequence':self.sequence}
     
     def _treatMessage(self, bytesMessage):
         shouldStop = False
@@ -58,28 +58,29 @@ class Exhibitor(Client):
     def _treatMSGMessage(self, bytesMessage):
         sMsg = Parameter2BMessage()
         sMsg.fromBytes(bytesMessage)
-        print(f"MESSAGE from {sMsg.header.origin}< {sMsg.message}")
+        print(f"MESSAGE from {sMsg.header.origin}< '{sMsg.message}'")
     
     def _treatCLISTMessage(self, bytesMessage):
         sMsg = Parameter2BMessage()
         sMsg.fromBytes(bytesMessage)
-        print(f"CLIST< {sMsg.message}")
+        print(f"CLIST< '{sMsg.message}'")
 
         self._sendOKToServer()
     
     def _treatPLANETMessage(self, bytesMessage):
         sMsg = Parameter2BMessage()
         sMsg.fromBytes(bytesMessage)
-        print(f"PLANET of {sMsg.header.destiny}< {sMsg.message}")
+        print(f"PLANET of {sMsg.header.destiny}< '{sMsg.message}'")
     
     def _treatPLANETLISTMessage(self, bytesMessage):
         sMsg = Parameter2BMessage()
         sMsg.fromBytes(bytesMessage)
-        print(f"PLANETLIST< {sMsg.message}")
+        print(f"PLANETLIST< '{sMsg.message}'")
 
     def _sendOKToServer(self):
         sMsg = BaseHeader()
-        message = {'type': Communicator.OK_MSG_ID, 'origin': self.myID, 'destiny': Communicator.SERVID, 'sequence':0}
+        message = {'type': Communicator.OK_MSG_ID, 'origin': self.myID, 'destiny': Communicator.SERVID, 
+                    'sequence':self.sequence}
         sMsg.setAttr(message)
         bMsg = sMsg.toBytes()
 
@@ -88,14 +89,14 @@ class Exhibitor(Client):
     def answerRequestsUntilMustClose(self):
         shouldStop = False
         while(not shouldStop):
-            print("Esperando mensagem!")
             data = self.sock.recv(1024)
+            self.sequence += 1
 
             shouldStop = self._treatMessage(data)
         
         self.disconnectFromServer()
 
-    
+
 def runExhibitor():
 
     exhibitor = Exhibitor()
@@ -103,7 +104,6 @@ def runExhibitor():
     serverAddr = sys.argv[1].split(":")
 
     if(len(serverAddr) == 2 and exhibitor.connectWith(serverAddr[0], int(serverAddr[1]))):
-        print("Se conectou!")
         exhibitor.answerRequestsUntilMustClose()
     else:
         print("Program shutdown!")

@@ -15,7 +15,8 @@ class Emitter(Client):
         self.myExhibitorID = exhibitorID    
     
     def _messageForHI(self):
-        return {'type': Communicator.HI_MSG_ID, 'origin': self.myExhibitorID, 'destiny': Communicator.SERVID, 'sequence':0}
+        return {'type': Communicator.HI_MSG_ID, 'origin': self.myExhibitorID, 'destiny': Communicator.SERVID,
+                 'sequence':self.sequence}
     
     def _clearAttr(self):
         super()._clearAttr()
@@ -50,25 +51,27 @@ class Emitter(Client):
         elif splitedCommand[0] == "PLANETLIST":
             self._treatPLANETLISTCommand(splitedCommand)
         else:
-            print("< INVALID COMMAND!")
+            print("< UNKNOWN COMMAND!")
 
         return shouldStop
     
     def _treatKillCommand(self):
         shouldStop = False
         sMsg = BaseHeader()
-        message = {'type': Communicator.KILL_MSG_ID, 'origin': self.myID, 'destiny': self.myExhibitorID, 'sequence':0}
+        message = {'type': Communicator.KILL_MSG_ID, 'origin': self.myID, 'destiny': self.myExhibitorID,
+                     'sequence':self.sequence}
         sMsg.setAttr(message)
         bMsg = sMsg.toBytes()
 
-        #print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
         self.sock.send(bMsg)
+        self.sequence += 1
 
         data = self.sock.recv(1024)
 
         sMsg.fromBytes(data)
 
         if sMsg.type == 1:
+            print("< OK")
             shouldStop = True
         
         return shouldStop
@@ -81,15 +84,14 @@ class Emitter(Client):
             message['origin'] = self.myID
             message['destiny'] = int(splitedCommand[1])
             message['type'] = Communicator.MSG_MSG_ID
-            message['sequence'] = 0
+            message['sequence'] = self.sequence
             textMessage = " ".join(splitedCommand[2:])
             message['parameter'] = len(textMessage)
             message['message'] = textMessage
 
             sMsg.setAttr(message)
             bMsg = sMsg.toBytes()
-
-            #print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
+            self.sequence += 1
             
             self.sock.send(bMsg)
             
@@ -100,68 +102,73 @@ class Emitter(Client):
 
             sMsg.fromBytes(data)
 
-            if sMsg.type == 1:
-                print("> OK")
-            elif sMsg.type == 2:
-                print("> ERROR! SOMETHING WENT WRONG!")
+            self._printOKERRORMSGType(sMsg.type)
+        else:
+            print("< UNKNOWN COMMAND! Usage: MSG <destinyID> <message>")
     
     def _treatCREQCommand(self, splitedCommand):
         
         if len(splitedCommand) == 2:
             sMsg = BaseHeader()
-            message = {'type': Communicator.CREQ_MSG_ID, 'origin': self.myID, 'destiny': int(splitedCommand[1]), 'sequence':0}
+            message = {'type': Communicator.CREQ_MSG_ID, 'origin': self.myID, 'destiny': int(splitedCommand[1]),
+                         'sequence':self.sequence}
             sMsg.setAttr(message)
             bMsg = sMsg.toBytes()
 
-            #print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
             self.sock.send(bMsg)
+            self.sequence += 1
 
             data = self.sock.recv(1024)
 
             sMsg.fromBytes(data)
 
-            if sMsg.type == 1:
-                print("> OK")
-            elif sMsg.type == 2:
-                print("> ERROR! SOMETHING WENT WRONG!")
+            self._printOKERRORMSGType(sMsg.type)
+        else:
+            print("< UNKNOWN COMMAND! Usage: CREQ <destinyID>")
                 
     def _treatPLANETCommand(self, splitedCommand):
         if len(splitedCommand) == 2:
             sMsg = BaseHeader()
-            message = {'type': Communicator.PLANET_MSG_ID, 'origin': self.myID, 'destiny': int(splitedCommand[1]), 'sequence':0}
+            message = {'type': Communicator.PLANET_MSG_ID, 'origin': self.myID, 'destiny': int(splitedCommand[1]),
+                         'sequence':self.sequence}
             sMsg.setAttr(message)
             bMsg = sMsg.toBytes()
 
-            #print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
             self.sock.send(bMsg)
+            self.sequence += 1
 
             data = self.sock.recv(1024)
 
             sMsg.fromBytes(data)
 
-            if sMsg.type == 1:
-                print("> OK")
-            elif sMsg.type == 2:
-                print("> ERROR! SOMETHING WENT WRONG!")
+            self._printOKERRORMSGType(sMsg.type)
+        else:
+            print("< UNKNOWN COMMAND! Usage: PLANET <destinyID>")
     
     def _treatPLANETLISTCommand(self, splitedCommand):
         if len(splitedCommand) == 1:
             sMsg = BaseHeader()
-            message = {'type': Communicator.PLANETLIST_MSG_ID, 'origin': self.myID, 'destiny': Communicator.SERVID, 'sequence':0}
+            message = {'type': Communicator.PLANETLIST_MSG_ID, 'origin': self.myID, 'destiny': Communicator.SERVID,
+                         'sequence':self.sequence}
             sMsg.setAttr(message)
             bMsg = sMsg.toBytes()
 
-            #print('{}: sending {}'.format(self.sock.getsockname(), sMsg), file=sys.stderr)
             self.sock.send(bMsg)
+            self.sequence += 1
 
             data = self.sock.recv(1024)
 
             sMsg.fromBytes(data)
 
-            if sMsg.type == 1:
-                print("> OK")
-            elif sMsg.type == 2:
-                print("> ERROR! SOMETHING WENT WRONG!")
+            self._printOKERRORMSGType(sMsg.type)
+        else:
+            print("< UNKNOWN COMMAND! Usage: PLANETLIST")
+    
+    def _printOKERRORMSGType(self, type):
+        if type == 1:
+            print("> OK")
+        elif type == 2:
+            print("> ERROR! SOMETHING WENT WRONG!")
 
 
 def runEmitter():
@@ -174,7 +181,6 @@ def runEmitter():
     serverAddr = sys.argv[1].split(":")
 
     if(len(serverAddr) == 2 and emitter.connectWith(serverAddr[0], int(serverAddr[1]))):
-        print("Se conectou!")
         emitter.readInputUntilMustClose()
     else:
         print("Program shutdown!")

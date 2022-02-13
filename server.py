@@ -55,7 +55,6 @@ class Server(Communicator):
         self.sock.setblocking(0)
 
         # Bind the socket to the port
-        #server_address = (socket.gethostname(), port)
         server_address = ("", port)
         self.sock.bind(server_address)
         localIp = socket.gethostbyname(socket.gethostname())
@@ -117,7 +116,6 @@ class Server(Communicator):
 
             # Wait for at least one of the sockets to be
             # ready for processing
-            print('waiting for the next event', file=sys.stderr)
             readable, writable, exceptional = select.select(self.inputs, self.outputs, self.inputs)
             
             # Handle inputs
@@ -126,24 +124,19 @@ class Server(Communicator):
                 if s is self.sock:
                     # A "readable" socket is ready to accept a connection
                     connection, client_address = s.accept()
-                    print('  connection from', client_address, file=sys.stderr)
-                    print(connection.getsockname())
                     connection.setblocking(0)
                     self.inputs.append(connection)
 
                     # Give the connection a queue for data
                     # we want to send
-                    #print(f"Criou entrada no message queue para {connection}")
                     self.message_queues[connection] = queue.Queue()
                 else:
                     data = s.recv(1024)
                     if data:
-                        #print('Received {} from {}'.format(data, s.getpeername()), file=sys.stderr,)
                     
                         responses = self.treatMessage(data, s)
                         
                         for (socket, message) in responses.items():
-                            #print("Identificou uma msg")
                             self.message_queues[socket].put(message)
                             if socket not in self.outputs:
                                 self.outputs.append(socket)
@@ -159,23 +152,26 @@ class Server(Communicator):
                 except queue.Empty:
                     # No messages waiting so stop checking
                     # for writability.
-                    print('  ', s.getpeername(), 'queue empty', file=sys.stderr)
+                    print(s.getpeername(), 'queue empty', file=sys.stderr)
                     self.outputs.remove(s)
                 else:
                     msgType = struct.unpack("H", next_msg[0:2])[0]
 
                     shouldCloseConnection = False
+                    
                     if msgType in [Communicator.OK_MSG_ID, Communicator.KILL_MSG_ID, Communicator.ORIGIN_MSG_ID]:
                         sMsg = BaseHeader()
                         sMsg.fromBytes(next_msg)
                     
                         if msgType == Communicator.KILL_MSG_ID:
-                            #Its a KILL for a exhibitor
-                            exhibitorId = sMsg.destiny
-                            self.exihibitors.remove(exhibitorId)
-                            del self.idToSocketMap[exhibitorId]
-                            del self.clientsInfo[exhibitorId]
+                            #Server sending a KILL to a exhibitor
                             shouldCloseConnection = True
+                            
+                    elif msgType == Communicator.MSG_MSG_ID:
+                        sMsg = Parameter2BMessage()
+                        sMsg.fromBytes(next_msg)
+
+                        print(f"Sending MSG from {sMsg.header.origin} to {sMsg.header.destiny}")
                     
                     if(self.message_queues[s].empty()):
                         self.outputs.remove(s)
@@ -268,6 +264,7 @@ class Server(Communicator):
 
         inMessage = BaseHeader()
         inMessage.fromBytes(bMessage)
+        print("received HI")
         
         if self._isEmissorHIMsg(inMessage):
             responseMessage = ""
@@ -283,6 +280,7 @@ class Server(Communicator):
                 if(exhibitorExists):
                     self.takenExhibitors.append(inMessage.origin)
             else:
+                print(f"Error from {0}")
                 responseMessage = self.getErrorMessageFor(0)
             
             responses[inSocket] = responseMessage
@@ -306,6 +304,8 @@ class Server(Communicator):
 
         inMessage = BaseHeader()
         inMessage.fromBytes(bytesMessage)
+
+        print(f"Received KILL from {inMessage.origin}")
 
         if self._exhibitorExists(inMessage.destiny):
             exhibitorSocket = self.clientsInfo[inMessage.destiny]['socket']
@@ -333,6 +333,8 @@ class Server(Communicator):
 
         inMessage = Parameter2BMessage()
         inMessage.fromBytes(bytesMessage)
+
+        print(f"Received {inMessage.message} from {inMessage.header.origin}")
 
         self.clientsInfo[inMessage.header.origin]['planet'] = inMessage.message
         responseMessage = self.getOKMessageFor(inMessage.header.origin)
@@ -376,6 +378,7 @@ class Server(Communicator):
         if (foundDestinyOfMessage):
             responses[inSocket] = self.getOKMessageFor(inMessage.header.origin)
         else:
+            print(f"Error from {inMessage.origin}")
             responses[inSocket] = self.getErrorMessageFor(inMessage.header.origin)
 
         return responses
@@ -393,6 +396,8 @@ class Server(Communicator):
         numClients = len(self.getClientList())
 
         if inMessage.destiny == Communicator.ALL_CLIENTS:
+
+            print(f"Received CREQ from {inMessage.origin} to ALL CLIENTS")
 
             foundDestinyOfMessage = True
             exhibitorsToBeSent = []
@@ -420,6 +425,8 @@ class Server(Communicator):
 
         elif (self._exhibitorExists(inMessage.destiny)):
 
+            print(f"Received CREQ from {inMessage.origin} to {inMessage.destiny}")
+
             foundDestinyOfMessage = True
 
             exSocket = self.clientsInfo[inMessage.destiny]['socket']
@@ -427,6 +434,8 @@ class Server(Communicator):
             responses[exSocket] = bMsg
             
         elif (self._emitterExists(inMessage.destiny)):
+
+            print(f"Received CREQ from {inMessage.origin} to {inMessage.destiny}")
 
             foundDestinyOfMessage = True
 
@@ -438,6 +447,7 @@ class Server(Communicator):
         if (foundDestinyOfMessage):
             responses[inSocket] = self.getOKMessageFor(inMessage.origin)
         else:
+            print(f"Error from {inMessage.origin}")
             responses[inSocket] = self.getErrorMessageFor(inMessage.origin)
 
         return responses
@@ -454,6 +464,8 @@ class Server(Communicator):
 
         if (emitterExhibitor != Communicator.NO_EXHIBITOR_ID and inMessage.destiny in self.clientsInfo):
 
+            print(f"Received PLANET from {inMessage.origin} to {inMessage.destiny}")
+
             foundDestinyOfMessage = True
 
             emitterExhibitor = self.clientsInfo[inMessage.origin]['exhibitor']
@@ -467,6 +479,7 @@ class Server(Communicator):
         if (foundDestinyOfMessage):
             responses[inSocket] = self.getOKMessageFor(inMessage.origin)
         else:
+            print(f"Error from {inMessage.origin}")
             responses[inSocket] = self.getErrorMessageFor(inMessage.origin)
 
         return responses
@@ -484,6 +497,7 @@ class Server(Communicator):
 
             emitterExhibitor = self.clientsInfo[inMessage.origin]['exhibitor']
             exSocket = self.clientsInfo[emitterExhibitor]['socket']
+            print(f"Received PLANETLIST from {inMessage.origin} to {emitterExhibitor}")
             
             planetListString = " ".join(list(self._getSetOfClientPlanets()))
 
@@ -494,6 +508,7 @@ class Server(Communicator):
         if (foundDestinyOfMessage):
             responses[inSocket] = self.getOKMessageFor(inMessage.origin)
         else:
+            print(f"Error from {inMessage.origin}")
             responses[inSocket] = self.getErrorMessageFor(inMessage.origin)
 
         return responses
@@ -502,7 +517,6 @@ class Server(Communicator):
         planetSet = set()
 
         for (_, clientInfo) in self.clientsInfo.items():
-            print(f'{clientInfo}')
             clientPlanet = clientInfo['planet']
             planetSet.add(clientPlanet)
         
