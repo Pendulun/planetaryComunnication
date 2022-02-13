@@ -17,6 +17,16 @@ class Exhibitor(Client):
         return {'type': Communicator.HI_MSG_ID, 'origin': Communicator.EXHIBITOR_HI_MSG_ID,
                 'destiny': Communicator.SERVID, 'sequence':self.sequence}
     
+    def answerRequestsUntilMustClose(self):
+        shouldStop = False
+        while(not shouldStop):
+            data = self.sock.recv(1024)
+            self.sequence += 1
+
+            shouldStop = self._treatMessage(data)
+        
+        self.disconnectFromServer()
+    
     def _treatMessage(self, bytesMessage):
         shouldStop = False
 
@@ -85,16 +95,6 @@ class Exhibitor(Client):
         bMsg = sMsg.toBytes()
 
         self.sock.send(bMsg)
-    
-    def answerRequestsUntilMustClose(self):
-        shouldStop = False
-        while(not shouldStop):
-            data = self.sock.recv(1024)
-            self.sequence += 1
-
-            shouldStop = self._treatMessage(data)
-        
-        self.disconnectFromServer()
 
 
 def runExhibitor():
