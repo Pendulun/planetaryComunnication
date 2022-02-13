@@ -27,7 +27,7 @@ class Emitter(Client):
         while(not shouldStop):
             print("> ", end="")
             command = input()
-            shouldStop = self._treatCommand(command)
+            shouldStop = self._treatCommand(command.strip())
         
         self.disconnectFromServer()
     
